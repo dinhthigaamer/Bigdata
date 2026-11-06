@@ -1,0 +1,7 @@
+{
+  "system_information": "https://gbfs.velobixi.com/gbfs/2-2/en/system_information.json",
+  "vehicle_types": "https://gbfs.velobixi.com/gbfs/2-2/en/vehicle_types.json",
+  "station_information": "https://gbfs.velobixi.com/gbfs/2-2/en/station_information.json",
+  "station_status": "https://gbfs.velobixi.com/gbfs/2-2/en/station_status.json",
+  "system_alerts": "https://gbfs.velobixi.com/gbfs/2-2/en/system_alerts.json"
+}

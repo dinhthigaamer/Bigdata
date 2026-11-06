@@ -1,0 +1,129 @@
+{
+  "latitude": 45.49215,
+  "longitude": -73.56103,
+  "generationtime_ms": 1.4415979385375977,
+  "utc_offset_seconds": 0,
+  "timezone": "GMT",
+  "timezone_abbreviation": "GMT",
+  "elevation": 76.0,
+  "current_units": {
+    "time": "iso8601",
+    "interval": "seconds",
+    "temperature_2m": "°C",
+    "relative_humidity_2m": "%",
+    "precipitation": "mm",
+    "rain": "mm",
+    "snowfall": "cm",
+    "wind_speed_10m": "km/h",
+    "wind_direction_10m": "°",
+    "wind_gusts_10m": "km/h",
+    "visibility": "m",
+    "weather_code": "wmo code"
+  },
+  "current": {
+    "time": "2026-11-06T17:15",
+    "interval": 900,
+    "temperature_2m": 15.6,
+    "relative_humidity_2m": 75,
+    "precipitation": 0.0,
+    "rain": 0.0,
+    "snowfall": 0.0,
+    "wind_speed_10m": 3.7,
+    "wind_direction_10m": 296,
+    "wind_gusts_10m": 9.0,
+    "visibility": 22100.0,
+    "weather_code": 0
+  },
+  "minutely_15_units": {
+    "time": "iso8601",
+    "temperature_2m": "°C",
+    "relative_humidity_2m": "%",
+    "precipitation": "mm",
+    "rain": "mm",
+    "snowfall": "cm",
+    "wind_speed_10m": "km/h",
+    "wind_direction_10m": "°",
+    "wind_gusts_10m": "km/h",
+    "visibility": "m",
+    "weather_code": "wmo code"
+  },
+  "minutely_15": {
+    "time": [
+      "2026-11-06T17:15",
+      "2026-11-06T17:30",
+      "2026-11-06T17:45",
+      "2026-11-06T18:00",
+      "2026-11-06T18:15"
+    ],
+    "temperature_2m": [
+      15.6,
+      15.7,
+      15.7,
+      15.8,
+      15.8
+    ],
+    "relative_humidity_2m": [
+      75,
+      74,
+      74,
+      74,
+      74
+    ],
+    "precipitation": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rain": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "snowfall": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "wind_speed_10m": [
+      3.7,
+      2.9,
+      3.8,
+      4.6,
+      5.9
+    ],
+    "wind_direction_10m": [
+      296,
+      315,
+      326,
+      324,
+      332
+    ],
+    "wind_gusts_10m": [
+      9.0,
+      7.6,
+      7.6,
+      8.3,
+      9.0
+    ],
+    "visibility": [
+      22100.0,
+      22700.0,
+      22700.0,
+      22500.0,
+      22300.0
+    ],
+    "weather_code": [
+      0,
+      0,
+      0,
+      1,
+      0
+    ]
+  }
+}
