@@ -21,10 +21,11 @@ from typing import Optional
 
 import requests
 
-from common.envelope import StationInfoEnvelope, StationStatusEnvelope, WeatherEnvelope
+from common.envelope import StationInfoEnvelope, StationStatusEnvelope, WeatherEnvelope, DlqEnvelope
 from common.schemas.station_info import normalize_information
 from common.schemas.station_status import normalize_status
 from common.schemas.weather import VARIABLES, parse_weather_response
+from concurrent.futures import ThreadPoolExecutor
 
 log = logging.getLogger("gbfs.polling")
 
@@ -88,18 +89,40 @@ def find_feeds(index: dict) -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------- Sinks
-class JsonlSink:
-    """Nối (append) mỗi bản ghi thành một dòng JSON: out/<topic>.<system_id|location_id>.jsonl"""
+# class JsonlSink:
+#     """Nối (append) mỗi bản ghi thành một dòng JSON: out/<topic>.<system_id|location_id>.jsonl"""
 
+#     def __init__(self, out_dir: str):
+#         self.dir = Path(out_dir)
+#         self.dir.mkdir(parents=True, exist_ok=True)
+
+#     def send(self, topic: str, system_id: str, records: list) -> None:
+#         path = self.dir / f"{topic}.{system_id}.jsonl"
+#         with open(path, "a", encoding="utf-8") as f:
+#             for r in records:
+#                 f.write(r.model_dump_json() + "\n")
+
+#     def close(self) -> None:
+#         pass
+class JsonlSink:
     def __init__(self, out_dir: str):
         self.dir = Path(out_dir)
         self.dir.mkdir(parents=True, exist_ok=True)
+        self.lock = threading.Lock()
 
     def send(self, topic: str, system_id: str, records: list) -> None:
         path = self.dir / f"{topic}.{system_id}.jsonl"
-        with open(path, "a", encoding="utf-8") as f:
+        with self.lock:
+            with open(path, "a", encoding="utf-8") as f:
+                for r in records:
+                    f.write(r.model_dump_json() + "\n")
+
+    def send_to_dlq(self, records: list) -> None:
+        with self.lock:
             for r in records:
-                f.write(r.model_dump_json() + "\n")
+                path = self.dir / f"{DlqEnvelope.topic}.{r.system_id}.jsonl"
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write(r.model_dump_json() + "\n")
 
     def close(self) -> None:
         pass
@@ -124,11 +147,23 @@ class KafkaSink:
             self.producer.poll(0)
         self.producer.flush(10)
 
+    def send_to_dlq(self, records: list) -> None:
+        for r in records:
+            self.producer.produce(
+                DlqEnvelope.topic,
+                key=r.key(),
+                value=r.model_dump_json()
+            )
+            self.producer.poll(0)
+
+        self.producer.flush(10)
+
     def close(self) -> None:
         self.producer.flush(10)
 
-
 # --------------------------------------------------------------------- Poller
+
+
 @dataclass
 class FeedTask:
     system: dict
@@ -166,6 +201,11 @@ def discover(session: requests.Session, tasks: list, system: dict) -> None:
                             system["system_id"], t.feed_name)
 
 
+def worker_run(sink, task, tasks):
+    with requests.Session() as session:
+        return run_task(session, sink, task, tasks)
+
+
 def run_task(session, sink, task, all_tasks: list) -> float:
     """Chạy một task (GBFS hoặc thời tiết), trả về số giây tới lần poll kế tiếp."""
     if isinstance(task, WeatherTask):
@@ -173,64 +213,213 @@ def run_task(session, sink, task, all_tasks: list) -> float:
     return run_feed_task(session, sink, task, all_tasks)
 
 
+# def run_weather_task(session, sink, task: WeatherTask) -> float:
+#     loc = task.location
+#     try:
+#         params = {**WEATHER_PARAMS,
+#                   "latitude": loc["latitude"], "longitude": loc["longitude"]}
+#         data = get_json(session, WEATHER_URL, params)
+#         task.failures = 0
+#         messages = parse_weather_response(data, loc["location_id"])
+#         records = [WeatherEnvelope.build(m) for m in messages]
+#         sink.send(WeatherEnvelope.topic, loc["location_id"], records)
+#         log.info("[%s] %d bản ghi (%d observed, %d forecast)", task.label, len(records),
+#                  sum(m.data_type == "observed" for m in messages),
+#                  sum(m.data_type == "forecast" for m in messages))
+#         return WEATHER_INTERVAL
+#     except (requests.RequestException, ValueError, KeyError) as e:
+#         task.failures += 1
+#         backoff = min(MAX_BACKOFF, MIN_INTERVAL * 2 ** task.failures)
+#         log.warning("[%s] lỗi (%s) lần %d, thử lại sau %ss",
+#                     task.label, e, task.failures, backoff)
+#         return backoff
+#     except (ValueError, KeyError) as e:
+#         sink.send_to_dlq(task, e)
 def run_weather_task(session, sink, task: WeatherTask) -> float:
     loc = task.location
+
     try:
-        params = {**WEATHER_PARAMS,
-                  "latitude": loc["latitude"], "longitude": loc["longitude"]}
+        params = {
+            **WEATHER_PARAMS,
+            "latitude": loc["latitude"],
+            "longitude": loc["longitude"]
+        }
+
         data = get_json(session, WEATHER_URL, params)
-        task.failures = 0
-        messages = parse_weather_response(data, loc["location_id"])
-        records = [WeatherEnvelope.build(m) for m in messages]
+
+        # Parse và chuẩn hóa dữ liệu
+        try:
+            messages = parse_weather_response(data, loc["location_id"])
+            records = [WeatherEnvelope.build(m) for m in messages]
+
+        except (ValueError, KeyError) as e:
+            task.failures += 1
+
+            dlq = DlqEnvelope.build(
+                original_data=data,
+                original_topic=WeatherEnvelope.topic,
+                original_record_type="weather_message",
+                system_id=f"open-meteo:{loc['location_id']}",
+                error=e,
+                retry_count=task.failures,
+            )
+
+            sink.send_to_dlq([dlq])
+
+            log.error("[%s] dữ liệu không hợp lệ, đã gửi DLQ: %s",
+                      task.label, e)
+
+            return WEATHER_INTERVAL
+
         sink.send(WeatherEnvelope.topic, loc["location_id"], records)
-        log.info("[%s] %d bản ghi (%d observed, %d forecast)", task.label, len(records),
+
+        task.failures = 0
+
+        log.info("[%s] %d bản ghi (%d observed, %d forecast)",
+                 task.label, len(records),
                  sum(m.data_type == "observed" for m in messages),
                  sum(m.data_type == "forecast" for m in messages))
+
         return WEATHER_INTERVAL
+
     except (requests.RequestException, ValueError, KeyError) as e:
         task.failures += 1
         backoff = min(MAX_BACKOFF, MIN_INTERVAL * 2 ** task.failures)
+
         log.warning("[%s] lỗi (%s) lần %d, thử lại sau %ss",
                     task.label, e, task.failures, backoff)
+
         return backoff
 
 
+# def run_feed_task(session, sink, task: FeedTask, all_tasks: list) -> float:
+#     """Poll một feed GBFS."""
+#     try:
+#         if not task.url:
+#             discover(session, all_tasks, task.system)
+#             if not task.url:
+#                 raise KeyError(f"feed {task.feed_name} không tồn tại")
+
+#         feed = get_json(session, task.url)
+#         task.failures = 0
+#         ttl = feed.get("ttl")
+#         interval = max(MIN_INTERVAL, ttl if isinstance(
+#             ttl, (int, float)) else DEFAULT_TTL)
+
+#         last_updated = feed.get("last_updated")
+#         if last_updated is not None and last_updated == task.last_updated:
+#             log.debug("[%s] chưa có snapshot mới", task.label)
+#             return UNCHANGED_RETRY
+#         task.last_updated = last_updated
+
+#         envelope_cls, normalize = FEEDS[task.feed_name]
+#         system_id = task.system["system_id"]
+#         records = [envelope_cls.build(feed, m)
+#                    for m in normalize(feed, system_id)]
+#         sink.send(envelope_cls.topic, system_id, records)
+#         log.info("[%s] %d bản ghi (last_updated=%s, ttl=%ss)",
+#                  task.label, len(records), last_updated, interval)
+#         return interval
+
+#     except (requests.RequestException) as e:
+#         task.failures += 1
+#         backoff = min(MAX_BACKOFF, MIN_INTERVAL * 2 ** task.failures)
+#         if task.failures >= 3:
+#             task.url = None  # URL có thể đã đổi -> khám phá lại từ gbfs.json
+#         log.warning("[%s] lỗi (%s) lần %d, thử lại sau %ss",
+#                     task.label, e, task.failures, backoff)
+#         return backoff
+#     except (ValueError, KeyError) as e:
+#         # Lỗi parse hoặc dữ liệu không hợp lệ
+#         sink.send_to_dlq(
+
+#         )
+
 def run_feed_task(session, sink, task: FeedTask, all_tasks: list) -> float:
-    """Poll một feed GBFS."""
     try:
         if not task.url:
             discover(session, all_tasks, task.system)
+
             if not task.url:
                 raise KeyError(f"feed {task.feed_name} không tồn tại")
 
         feed = get_json(session, task.url)
-        task.failures = 0
+
         ttl = feed.get("ttl")
-        interval = max(MIN_INTERVAL, ttl if isinstance(
-            ttl, (int, float)) else DEFAULT_TTL)
+        interval = max(
+            MIN_INTERVAL,
+            ttl if isinstance(ttl, (int, float)) else DEFAULT_TTL
+        )
 
         last_updated = feed.get("last_updated")
+
         if last_updated is not None and last_updated == task.last_updated:
             log.debug("[%s] chưa có snapshot mới", task.label)
             return UNCHANGED_RETRY
-        task.last_updated = last_updated
 
         envelope_cls, normalize = FEEDS[task.feed_name]
         system_id = task.system["system_id"]
-        records = [envelope_cls.build(feed, m)
-                   for m in normalize(feed, system_id)]
+
+        # Chuẩn hóa dữ liệu
+        try:
+            records = [
+                envelope_cls.build(feed, m)
+                for m in normalize(feed, system_id)
+            ]
+
+        except (ValueError, KeyError) as e:
+            task.failures += 1
+
+            dlq = DlqEnvelope.build(
+                original_data=feed,
+                original_topic=envelope_cls.topic,
+                original_record_type=task.feed_name,
+                system_id=system_id,
+                error=e,
+                retry_count=task.failures,
+            )
+
+            sink.send_to_dlq([dlq])
+
+            # Đánh dấu snapshot này đã xử lý để không gửi DLQ lặp lại
+            task.last_updated = last_updated
+            task.failures = 0
+
+            log.error("[%s] dữ liệu không hợp lệ, đã gửi DLQ: %s",
+                      task.label, e)
+
+            return interval
+
         sink.send(envelope_cls.topic, system_id, records)
+
+        task.last_updated = last_updated
+        task.failures = 0
+
         log.info("[%s] %d bản ghi (last_updated=%s, ttl=%ss)",
                  task.label, len(records), last_updated, interval)
+
         return interval
 
-    except (requests.RequestException, ValueError, KeyError) as e:
+    except requests.RequestException as e:
         task.failures += 1
         backoff = min(MAX_BACKOFF, MIN_INTERVAL * 2 ** task.failures)
+
         if task.failures >= 3:
-            task.url = None  # URL có thể đã đổi -> khám phá lại từ gbfs.json
+            task.url = None
+
         log.warning("[%s] lỗi (%s) lần %d, thử lại sau %ss",
                     task.label, e, task.failures, backoff)
+
+        return backoff
+
+    except (ValueError, KeyError) as e:
+        # Lỗi lấy hoặc đọc feed, chưa có payload hợp lệ để đưa vào DLQ
+        task.failures += 1
+        backoff = min(MAX_BACKOFF, MIN_INTERVAL * 2 ** task.failures)
+
+        log.warning("[%s] lỗi (%s) lần %d, thử lại sau %ss",
+                    task.label, e, task.failures, backoff)
+
         return backoff
 
 
@@ -264,21 +453,68 @@ def main() -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stop.set())
 
+    # try:
+    #     if args.once:
+    #         for t in tasks:
+    #             run_task(session, sink, t, tasks)
+    #         return
+    #     while not stop.is_set():
+    #         task = min(tasks, key=lambda t: t.next_due)
+    #         wait = task.next_due - time.monotonic()
+    #         if wait > 0:
+    #             stop.wait(wait)
+    #             continue
+    #         task.next_due = time.monotonic() + run_task(session, sink, task, tasks)
+    # finally:
+    #     sink.close()
+    #     session.close()
+    #     log.info("Đã dừng.")
+
+    MAX_WORKERS = 5
+
     try:
-        if args.once:
-            for t in tasks:
-                run_task(session, sink, t, tasks)
-            return
-        while not stop.is_set():
-            task = min(tasks, key=lambda t: t.next_due)
-            wait = task.next_due - time.monotonic()
-            if wait > 0:
-                stop.wait(wait)
-                continue
-            task.next_due = time.monotonic() + run_task(session, sink, task, tasks)
+        with ThreadPoolExecutor(max_workers=5) as executor:
+
+            if args.once:
+                futures = [
+                    executor.submit(worker_run, sink, t, tasks)
+                    for t in tasks
+                ]
+
+                for future in futures:
+                    future.result()
+
+            else:
+                running = {}
+
+                while not stop.is_set():
+                    now = time.monotonic()
+
+                    for task in tasks:
+                        if any(t is task for t in running.values()):
+                            continue
+
+                        if task.next_due <= now:
+                            future = executor.submit(
+                                worker_run, sink, task, tasks
+                            )
+                            running[future] = task
+
+                    for future, task in list(running.items()):
+                        if future.done():
+                            del running[future]
+
+                            try:
+                                interval = future.result()
+                                task.next_due = time.monotonic() + interval
+                            except Exception:
+                                log.exception("Task failed")
+                                task.next_due = time.monotonic() + 5
+
+                    stop.wait(0.1)
+
     finally:
         sink.close()
-        session.close()
         log.info("Đã dừng.")
 
 
