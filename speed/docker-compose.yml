@@ -1,0 +1,35 @@
+services:
+  spark-speed:
+    build:
+      context: ..
+      dockerfile: speed/Dockerfile
+    container_name: spark-speed
+    ports:
+      - "4040:4040"
+    environment:
+      PYTHONPATH: /app
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+    command:
+      - python
+      - -m
+      - speed.jobs.job_a_console
+      - --kafka
+      - ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      - --checkpoint
+      - /checkpoints/job_a_console
+    volumes:
+      - ..:/app
+      - spark_checkpoints:/checkpoints
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - kafka-docker_default
+    restart: unless-stopped
+
+networks:
+  kafka-docker_default:
+    name: ${DOCKER_NETWORK:-kafka-docker_default}
+
+volumes:
+  spark_checkpoints:
+    name: spark_checkpoints
