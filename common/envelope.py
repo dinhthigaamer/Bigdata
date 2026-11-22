@@ -95,10 +95,57 @@ class WeatherEnvelope(EnvelopeBase):
         # (địa điểm, mốc thời gian): bản mới nhất của cùng khóa ghi đè bản cũ (forecast cập nhật)
         return f"{self.payload.location_id}:{self.payload.time:%Y%m%dT%H%M}"
 
+# --------------------------------------------------------------- DLQ
+
+
+class DlqEnvelope(EnvelopeBase):
+    """Envelope lưu bản ghi không thể xử lý vào Dead Letter Queue."""
+
+    topic: ClassVar[str] = "ingestion.dlq"
+    record_type: Literal["dlq"] = "dlq"
+
+    # Thông tin bản ghi gốc
+    original_topic: str
+    original_record_type: str
+    original_data: Any
+
+    # Thông tin lỗi
+    error_type: str
+    error_message: str
+    failed_at: datetime = Field(default_factory=_now)
+    retry_count: int = 0
+
+    # DLQ không có payload nghiệp vụ
+    payload: Any = None
+
+    @classmethod
+    def build(
+        cls,
+        original_data: Any,
+        original_topic: str,
+        original_record_type: str,
+        system_id: str,
+        error: Exception,
+        retry_count: int = 0,
+    ):
+        return cls(
+            system_id=system_id,
+            original_topic=original_topic,
+            original_record_type=original_record_type,
+            original_data=original_data,
+            error_type=type(error).__name__,
+            error_message=str(error),
+            retry_count=retry_count,
+        )
+
+    def key(self) -> str:
+        return f"{self.system_id}:{self.original_record_type}"
+
 
 # --------------------------------------------------------------- Parse
 AnyEnvelope = Annotated[
-    Union[StationStatusEnvelope, StationInfoEnvelope, WeatherEnvelope],
+    Union[StationStatusEnvelope, StationInfoEnvelope,
+          WeatherEnvelope, DlqEnvelope],
     Field(discriminator="record_type"),
 ]
 _adapter = TypeAdapter(AnyEnvelope)
