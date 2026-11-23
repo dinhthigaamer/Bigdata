@@ -1,0 +1,32 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8
+    container_name: citybike-clickhouse
+    restart: unless-stopped
+
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+
+    env_file:
+      - ./serving/clickhouse/.env
+
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+      - ./serving/clickhouse/init:/docker-entrypoint-initdb.d:ro
+
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+    healthcheck:
+      test: [ "CMD", "clickhouse-client", "--query", "SELECT 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  clickhouse_data:
+  clickhouse_logs:

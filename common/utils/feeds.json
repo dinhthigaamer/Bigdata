@@ -1,0 +1,11 @@
+{
+  "free_bike_status": "https://mds.bird.co/gbfs/v2/public/washington-dc/free_bike_status.json",
+  "gbfs_versions": "https://mds.bird.co/gbfs/v2/public/washington-dc/gbfs_versions.json",
+  "geofencing_zones": "https://mds.bird.co/gbfs/v2/public/washington-dc/geofencing_zones.json",
+  "station_information": "https://mds.bird.co/gbfs/v2/public/washington-dc/station_information.json",
+  "station_status": "https://mds.bird.co/gbfs/v2/public/washington-dc/station_status.json",
+  "system_information": "https://mds.bird.co/gbfs/v2/public/washington-dc/system_information.json",
+  "system_pricing_plans": "https://mds.bird.co/gbfs/v2/public/washington-dc/system_pricing_plans.json",
+  "system_regions": "https://mds.bird.co/gbfs/v2/public/washington-dc/system_regions.json",
+  "vehicle_types": "https://mds.bird.co/gbfs/v2/public/washington-dc/vehicle_types.json"
+}

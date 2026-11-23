@@ -26,21 +26,22 @@ from common.schemas.station_info import normalize_information
 from common.schemas.station_status import normalize_status
 from common.schemas.weather import VARIABLES, parse_weather_response
 from concurrent.futures import ThreadPoolExecutor
+from ingestion.const import SYSTEMS
 
 log = logging.getLogger("gbfs.polling")
 
-SYSTEMS = [
-    {
-        "url": "https://gbfs.citibikenyc.com/gbfs/2.3/gbfs.json",
-        "version": "2.3",
-        "system_id": "citi-bike-nyc",
-    },
-    {
-        "url": "https://gbfs.velobixi.com/gbfs/2-2/gbfs.json",
-        "version": "2.2",
-        "system_id": "velobixi",
-    },
-]
+# SYSTEMS = [
+#     {
+#         "url": "https://gbfs.citibikenyc.com/gbfs/2.3/gbfs.json",
+#         "version": "2.3",
+#         "system_id": "citi-bike-nyc",
+#     },
+#     {
+#         "url": "https://gbfs.velobixi.com/gbfs/2-2/gbfs.json",
+#         "version": "2.2",
+#         "system_id": "velobixi",
+#     },
+# ]
 
 # feed -> (class envelope, hàm chuẩn hóa)
 FEEDS = {
