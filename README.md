@@ -1,5 +1,2 @@
-# Ingestion layer
-
-- common/schemas : Schema của dữ liệu
-- ingestion: Data poller, gọi API lấy dữ liệu.
-- mock data: out/
+- Khởi tạo các thành phần dự án bằng docker-compose chung: docker-compose.merged.yml.
+- Nếu muốn sử dụng serving layer, vào và đọc thêm chi tiết trong folder

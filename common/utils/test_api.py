@@ -9,7 +9,7 @@ import requests
 
 # Potential
 # GBFS_URL = "https://gbfs.citibikenyc.com/gbfs/2.3/gbfs.json"
-GBFS_URL = "https://gbfs.velobixi.com/gbfs/2-2/gbfs.json"
+GBFS_URL = "https://mds.bird.co/gbfs/v2/public/washington-dc/gbfs.json"
 # GBFS_URL = "https://maas.zeus.cooltra.com/gbfs/brussels/3.0/en/gbfs.json"
 
 # Nếu muốn thử qua Citybikes (giới hạn 300 request/giờ khi không có key):
@@ -102,7 +102,7 @@ def main():
 
     # 6. Xem nguyên một phần tử thô để kiểm tra tên trường thực tế
     print("\nVí dụ một phần tử station_status thô:")
-    print(status["data"]["stations"][20])
+    # print(status["data"]["stations"])
 
 
 if __name__ == "__main__":
