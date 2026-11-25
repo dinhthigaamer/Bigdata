@@ -104,7 +104,8 @@ class ClickHouseWriter:
     # ---------- ghi cơ bản ----------
     def table_columns(self, table: str) -> list[str]:
         if table not in self._columns:
-            res = self._retry(lambda: self.client.query(f"DESCRIBE TABLE {table}"))
+            res = self._retry(lambda: self.client.query(
+                f"DESCRIBE TABLE {table}"))
             self._columns[table] = [r[0] for r in res.result_rows]
         return self._columns[table]
 
@@ -112,6 +113,7 @@ class ClickHouseWriter:
         """Ghi list[dict]. Cột lạ -> lỗi; cột thiếu -> dùng DEFAULT của bảng."""
         if not rows:
             return 0
+        print(self.table_columns(table))
         valid = set(self.table_columns(table))
         cols = list(rows[0].keys())
         unknown = [c for c in cols if c not in valid]
@@ -201,8 +203,16 @@ class ClickHouseWriter:
 def apply_ddl(ddl_dir: str | Path, config: ClickHouseConfig | None = None) -> None:
     """Áp DDL thủ công (khi volume đã tồn tại, init script của Docker không chạy lại)."""
     cfg = config or ClickHouseConfig.from_env()
-    client = clickhouse_connect.get_client(
-        host=cfg.host, port=cfg.port, username=cfg.username, password=cfg.password)
+    print(cfg)
+
+    try:
+        client = clickhouse_connect.get_client(
+            host=cfg.host, port=cfg.port, username=cfg.username, password=cfg.password)
+    except Exception as e:
+        print("Connect error")
+        print(e)
+        return
+
     for f in sorted(Path(ddl_dir).glob("*.sql")):
         for stmt in f.read_text(encoding="utf-8").split(";"):
             sql = "\n".join(l for l in stmt.splitlines()
