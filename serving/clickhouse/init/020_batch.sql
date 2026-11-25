@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS bigdata.station_flow_batch
 (
+    system_id        String,
     station_id       String,
     hour_ts          DateTime('UTC'),
     bikes_in         UInt32,
