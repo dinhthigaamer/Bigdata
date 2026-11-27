@@ -10,15 +10,12 @@
 
 ```bash
 # 1. Nếu volume đã tồn tại: áp DDL thủ công
-pip install -r libs/ch_writer/requirements.txt
-cd libs && python -m ch_writer.ch_writer ../clickhouse/init
+pip install -r serving/libs/ch_writer/requirements.txt
+python -m serving.libs.ch_writer.ch_writer ../clickhouse/init
 
 # 2. Load dữ liệu tĩnh vào bảng dim_station:
-cd ../..
 python -m serving.boostrap.load_dim_station
 ```
-
-
 
 # Hướng Dẫn Nhanh Grafana & ClickHouse
 
