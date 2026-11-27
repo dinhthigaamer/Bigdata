@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS bigdata.forecast_rt
 (
+    system_id     LowCardinality(String),
     station_id    String,
     forecast_ts   DateTime64(3, 'UTC'),
     target_ts     DateTime64(3, 'UTC'),
@@ -14,11 +15,12 @@ CREATE TABLE IF NOT EXISTS bigdata.forecast_rt
 )
 ENGINE = ReplacingMergeTree(forecast_ts)
 PARTITION BY toYYYYMMDD(target_ts)
-ORDER BY (station_id, target_ts, model_name)
-TTL toDateTime(target_ts) + INTERVAL 7 DAY;
+ORDER BY (system_id, station_id, target_ts, horizon_min, model_name)
+TTL toDateTime(target_ts) + INTERVAL 7 DAY DELETE;
 
 CREATE TABLE IF NOT EXISTS bigdata.station_cluster_batch
 (
+    system_id     LowCardinality(String),
     run_id        String,
     station_id    String,
     cluster_id    UInt16,
@@ -27,12 +29,13 @@ CREATE TABLE IF NOT EXISTS bigdata.station_cluster_batch
     computed_at   DateTime64(3, 'UTC') DEFAULT now64(3)
 )
 ENGINE = ReplacingMergeTree(computed_at)
-ORDER BY (run_id, station_id);
+ORDER BY (system_id, run_id, station_id);
 
 CREATE TABLE IF NOT EXISTS bigdata.model_metrics
 (
     model_name    LowCardinality(String),
     model_version String DEFAULT '',
+    system_id     LowCardinality(String) DEFAULT '',
     metric_name   LowCardinality(String),
     metric_value  Float64,
     scope         LowCardinality(String) DEFAULT 'global',
@@ -41,4 +44,4 @@ CREATE TABLE IF NOT EXISTS bigdata.model_metrics
     evaluated_at  DateTime64(3, 'UTC') DEFAULT now64(3)
 )
 ENGINE = MergeTree
-ORDER BY (model_name, metric_name, evaluated_at);
+ORDER BY (model_name, system_id, metric_name, evaluated_at);

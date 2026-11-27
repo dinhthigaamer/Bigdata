@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
+
+# 1. Cài đặt thư viện trước để tận dụng Docker build cache
+COPY serving/requirements.txt /tmp/requirements.txt
+COPY serving/libs/ch_writer/requirements.txt /tmp/libs/ch_writer/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# 2. Copy mã nguồn liên quan
+COPY common /app/common
+COPY serving /app/serving
+
+# Mặc định chạy quy trình khởi tạo schema & nạp dữ liệu tĩnh
+CMD ["bash", "-c", "python -m serving.libs.ch_writer.ch_writer serving/clickhouse/init && python -m serving.boostrap.load_dim_station"]

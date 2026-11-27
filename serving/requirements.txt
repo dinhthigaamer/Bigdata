@@ -1,0 +1,2 @@
+-r libs/ch_writer/requirements.txt
+pydantic>=2.0.0

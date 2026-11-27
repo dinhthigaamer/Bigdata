@@ -1,4 +1,3 @@
--- ===== DIMENSION =====
 CREATE TABLE IF NOT EXISTS bigdata.dim_station
 (
     system_id       LowCardinality(String),
@@ -17,7 +16,6 @@ CREATE TABLE IF NOT EXISTS bigdata.dim_station
 ENGINE = ReplacingMergeTree(updated_at)
 ORDER BY (system_id, station_id);
 
--- ===== TRẠNG THÁI MỚI NHẤT (query với FINAL hoặc argMax) =====
 CREATE TABLE IF NOT EXISTS bigdata.station_latest
 (
     system_id                LowCardinality(String),
@@ -67,6 +65,7 @@ TTL toDateTime(event_ts) + INTERVAL 30 DAY DELETE;
 
 CREATE TABLE IF NOT EXISTS bigdata.station_flow_rt
 (
+    system_id    LowCardinality(String),
     station_id   String,
     window_start DateTime64(3, 'UTC'),
     window_end   DateTime64(3, 'UTC'),
@@ -78,12 +77,13 @@ CREATE TABLE IF NOT EXISTS bigdata.station_flow_rt
 )
 ENGINE = ReplacingMergeTree(ingested_at)
 PARTITION BY toYYYYMMDD(window_start)
-ORDER BY (station_id, window_start)
-TTL toDateTime(window_start) + INTERVAL 30 DAY;
+ORDER BY (system_id, station_id, window_start)
+TTL toDateTime(window_start) + INTERVAL 30 DAY DELETE;
 
 CREATE TABLE IF NOT EXISTS bigdata.alerts_log
 (
     alert_id     UUID DEFAULT generateUUIDv4(),
+    system_id    LowCardinality(String),
     ts           DateTime64(3, 'UTC'),
     station_id   String,
     alert_type   LowCardinality(String),
@@ -95,8 +95,8 @@ CREATE TABLE IF NOT EXISTS bigdata.alerts_log
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(ts)
-ORDER BY (ts, station_id)
-TTL toDateTime(ts) + INTERVAL 90 DAY;
+ORDER BY (system_id, ts, station_id)
+TTL toDateTime(ts) + INTERVAL 90 DAY DELETE;
 
 CREATE TABLE IF NOT EXISTS bigdata.weather_latest
 (
@@ -121,4 +121,4 @@ CREATE TABLE IF NOT EXISTS bigdata.weather_latest
 )
 ENGINE = ReplacingMergeTree(fetch_time)
 PARTITION BY toYYYYMM(time)
-ORDER BY (location_id, time);
+ORDER BY (location_id, data_type, time);
