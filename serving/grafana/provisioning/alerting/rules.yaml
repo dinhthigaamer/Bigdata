@@ -1,0 +1,315 @@
+apiVersion: 1
+groups:
+    - orgId: 1
+      name: alerts_log_1m
+      folder: alert_rules
+      interval: 1m
+      rules:
+        - uid: fg5nyjk4udcsgc
+          title: 'Rule A: có alert critical chưa resolved'
+          condition: C
+          data:
+            - refId: A
+              queryType: timeseries
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: clickhouse-ds
+              model:
+                editorType: sql
+                format: 0
+                intervalMs: 1000
+                maxDataPoints: 43200
+                meta:
+                    builderOptions:
+                        columns: []
+                        database: ""
+                        limit: 1000
+                        meta: {}
+                        mode: list
+                        queryType: table
+                        table: ""
+                pluginVersion: 4.24.0
+                queryType: timeseries
+                rawSql: |-
+                    SELECT
+                        toStartOfInterval(ts, INTERVAL 1 minute) AS time,
+                        system_id,
+                        uniqExact(station_id) AS stations
+                    FROM bigdata.alerts_log
+                    WHERE $__timeFilter(ts)
+                      AND severity = 'critical'
+                      AND resolved = 0
+                    GROUP BY time, system_id
+                    ORDER BY time
+                refId: A
+            - refId: B
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params: []
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - B
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                reducer: max
+                refId: B
+                type: reduce
+            - refId: C
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: B
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: NoData
+          execErrState: Error
+          for: 2m
+          annotations:
+            summary: '{{ $labels.system_id }}: {{ printf "%.0f" $values.B.Value }} trạm có cảnh báo critical trong 10 phút qua'
+          labels:
+            severity: critical
+            team: bigdata
+          isPaused: false
+          notification_settings:
+            receiver: telegram-bigdata
+        - uid: bg5nyzgio97uoa
+          title: 'Rule B: pipeline realtime ngừng cập nhật (heartbeat)'
+          condition: C
+          data:
+            - refId: A
+              queryType: timeseries
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: clickhouse-ds
+              model:
+                editorType: sql
+                format: 0
+                intervalMs: 1000
+                maxDataPoints: 43200
+                meta:
+                    builderOptions:
+                        columns: []
+                        database: ""
+                        limit: 1000
+                        meta: {}
+                        mode: list
+                        queryType: table
+                        table: ""
+                pluginVersion: 4.24.0
+                queryType: timeseries
+                rawSql: |-
+                    SELECT now() AS time,
+                           dateDiff('second', max(ingest_ts), now()) AS lag_seconds
+                    FROM bigdata.station_status_rt
+                    WHERE event_ts > now() - INTERVAL 1 HOUR
+                refId: A
+            - refId: B
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params: []
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - B
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                reducer: last
+                refId: B
+                type: reduce
+            - refId: C
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 600
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: B
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: Alerting
+          execErrState: Alerting
+          for: 5m
+          annotations:
+            summary: 'Pipeline realtime ngừng cập nhật: dữ liệu trễ {{ printf "%.0f" $values.B.Value }} giây (ngưỡng 600 giây).'
+          labels:
+            severity: critical
+            team: bigdata
+          isPaused: false
+          notification_settings:
+            receiver: telegram-bigdata
+    - orgId: 1
+      name: alerts_log_5m
+      folder: alert_rules
+      interval: 5m
+      rules:
+        - uid: bg5nz9da5oc1sf
+          title: 'Rule C: tỷ lệ trạm không hoạt động tăng cao (tùy chọn)'
+          condition: C
+          data:
+            - refId: A
+              queryType: timeseries
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: clickhouse-ds
+              model:
+                editorType: sql
+                format: 0
+                intervalMs: 1000
+                maxDataPoints: 43200
+                meta:
+                    builderOptions:
+                        columns: []
+                        database: ""
+                        limit: 1000
+                        meta: {}
+                        mode: list
+                        queryType: table
+                        table: ""
+                pluginVersion: 4.24.0
+                queryType: timeseries
+                rawSql: |-
+                    SELECT now() AS time, system_id,
+                           100 * countIf(is_renting = 0 OR is_installed = 0) / count() AS pct_offline
+                    FROM bigdata.station_latest FINAL
+                    GROUP BY system_id
+                refId: A
+            - refId: B
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params: []
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - B
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                reducer: last
+                refId: B
+                type: reduce
+            - refId: C
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 20
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                            - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                datasource:
+                    type: __expr__
+                    uid: __expr__
+                expression: B
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          noDataState: OK
+          execErrState: Error
+          for: 10m
+          annotations:
+            summary: '{{ $labels.system_id }}: {{ printf "%.1f" $values.B.Value }}% trạm không hoạt động (ngưỡng 20%).'
+          labels:
+            severity: critical
+            team: bigdata
+          isPaused: false
+          notification_settings:
+            receiver: telegram-bigdata
