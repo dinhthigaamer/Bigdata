@@ -157,6 +157,8 @@ services:
       CH_USER: ${CH_USER:-bigdata}
       CH_PASSWORD: ${CH_PASSWORD:-bigdata123}
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/my-dashboard.json
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Thiếu TELEGRAM_BOT_TOKEN trong .env}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:?Thiếu TELEGRAM_CHAT_ID trong .env}
     ports:
       - "3000:3000"
     volumes:

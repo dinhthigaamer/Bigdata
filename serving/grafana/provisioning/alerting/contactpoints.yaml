@@ -1,0 +1,24 @@
+apiVersion: 1
+contactPoints:
+    - orgId: 1
+      name: email receiver
+      receivers:
+        - uid: dg5nxjj2tydxcb
+          type: email
+          settings:
+            addresses: <example@email.com>
+          disableResolveMessage: false
+    - orgId: 1
+      name: telegram-bigdata
+      receivers:
+        - uid: bg5nxjj2tydxdc
+          type: telegram
+          settings:
+            bottoken: ${TELEGRAM_BOT_TOKEN}
+            chatid: "${TELEGRAM_CHAT_ID}"
+            disable_notification: false
+            disable_web_page_preview: false
+            message: '{{ template "telegram.alert" . }}'
+            parse_mode: HTML
+            protect_content: false
+          disableResolveMessage: false
